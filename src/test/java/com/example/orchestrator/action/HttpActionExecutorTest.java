@@ -3,18 +3,25 @@ package com.example.orchestrator.action;
 import com.example.orchestrator.model.Step;
 import com.example.orchestrator.util.ExecutionContext;
 import com.example.orchestrator.util.VariableNotFoundException;
+import com.example.orchestrator.util.VariableResolver;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.client.RestClient;
-import org.springframework.test.web.client.MockRestServiceServer;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class HttpActionExecutorTest {
@@ -22,6 +29,7 @@ class HttpActionExecutorTest {
     private HttpActionExecutor httpActionExecutor;
     private MockRestServiceServer mockServer;
     private RestClient restClient;
+    private MockedStatic<VariableResolver> mockedVariableResolver;
 
     @BeforeEach
     void setUp() {
@@ -29,6 +37,23 @@ class HttpActionExecutorTest {
         mockServer = MockRestServiceServer.bindTo(restClientBuilder).build();
         restClient = restClientBuilder.build();
         httpActionExecutor = new HttpActionExecutor(restClient);
+
+        mockedVariableResolver = Mockito.mockStatic(VariableResolver.class);
+        mockedVariableResolver.when(() -> VariableResolver.resolveVariables(anyString(), any(Map.class)))
+                .thenAnswer(invocation -> {
+                    String template = invocation.getArgument(0);
+                    Map<String, Object> context = invocation.getArgument(1);
+                    // Simple resolution for testing purposes
+                    for (Map.Entry<String, Object> entry : context.entrySet()) {
+                        template = template.replace("${" + entry.getKey() + "}", entry.getValue().toString());
+                    }
+                    return template;
+                });
+    }
+
+    @AfterEach
+    void tearDown() {
+        mockedVariableResolver.close();
     }
 
     @Test
@@ -116,7 +141,8 @@ class HttpActionExecutorTest {
         String expectedUrl = "http://test.com/api/123";
         String expectedResponseBody = "{\"status\": \"success\"}";
 
-        Map<String, Object> requestParams = Map.of("id", "123");
+        Map<String, Object> requestParams = new HashMap<>();
+        requestParams.put("id", "123");
         ExecutionContext context = new ExecutionContext();
 
         mockServer.expect(requestTo(expectedUrl))
@@ -178,7 +204,8 @@ class HttpActionExecutorTest {
         String expectedResponseBody = "{\"status\": \"success\"}";
         Map<String, String> headers = Map.of("Authorization", "Bearer ${token}");
 
-        Map<String, Object> requestParams = Map.of("token", "reqToken");
+        Map<String, Object> requestParams = new HashMap<>();
+        requestParams.put("token", "reqToken");
         ExecutionContext context = new ExecutionContext();
 
         mockServer.expect(requestTo(testUrl))
@@ -242,6 +269,9 @@ class HttpActionExecutorTest {
         String templateUrl = "http://test.com/api/${id}";
         Map<String, Object> requestParams = Collections.emptyMap();
         ExecutionContext context = new ExecutionContext();
+        // Mock the VariableResolver to throw VariableNotFoundException for this specific test
+        mockedVariableResolver.when(() -> VariableResolver.resolveVariables(anyString(), any(Map.class)))
+                .thenThrow(new VariableNotFoundException("Variable 'id' not found in context."));
 
         Step step = new Step(null, "http", "GET", templateUrl, null, null, null, null, null);
 
@@ -259,6 +289,9 @@ class HttpActionExecutorTest {
 
         Map<String, Object> requestParams = Collections.emptyMap();
         ExecutionContext context = new ExecutionContext();
+        // Mock the VariableResolver to throw VariableNotFoundException for this specific test
+        mockedVariableResolver.when(() -> VariableResolver.resolveVariables(anyString(), any(Map.class)))
+                .thenThrow(new VariableNotFoundException("Variable 'token' not found in context."));
 
         Step step = new Step(null, "http", "GET", testUrl, headers, null, null, null, null);
 
