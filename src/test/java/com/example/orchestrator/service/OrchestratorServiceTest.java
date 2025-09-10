@@ -58,7 +58,7 @@ public class OrchestratorServiceTest {
 
         assertNotNull(result);
         assertEquals("success", result.get("status"));
-        assertEquals("Orchestration for product " + product + " started", result.get("message"));
+        assertEquals("Orchestration for product " + product + " completed", result.get("message"));
         logger.info("Service test passed for product: {}", product);
     }
 

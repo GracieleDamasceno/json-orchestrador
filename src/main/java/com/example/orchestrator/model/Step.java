@@ -2,8 +2,10 @@ package com.example.orchestrator.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.http.HttpHeaders;
 
 import java.util.Map;
+import java.util.function.Consumer;
 
 public record Step(
         @JsonProperty("id") String id,

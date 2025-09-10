@@ -47,7 +47,7 @@ public class SpecLoaderServiceTest {
         String product = "testProduct";
         String resourcePath = SPECS_DIRECTORY + product + ".json";
         String jsonContent = "{ \"name\": \"testProduct\", \"description\": \"A test product specification\", \"inputs\": [], \"outputs\": [], \"steps\": [] }";
-        Resource mockResource = new ByteArrayResource(jsonContent.getBytes());
+        Resource mockResource = mock(Resource.class);
         // Create dummy Input, Output, and Steps for the Specification record
         Input dummyInput = new com.example.orchestrator.model.Input(List.of());
         Output dummyOutput = new com.example.orchestrator.model.Output(List.of());
