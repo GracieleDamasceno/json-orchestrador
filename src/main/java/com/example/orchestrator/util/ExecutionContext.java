@@ -17,4 +17,8 @@ public class ExecutionContext {
     public Object get(String key) {
         return contextMap.get(key);
     }
+
+    public Map<String, Object> getMap() {
+        return contextMap;
+    }
 }

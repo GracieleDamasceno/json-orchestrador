@@ -59,9 +59,9 @@ class OrchestratorServiceImplIntegrationTest {
 
         // Mock HttpActionExecutor behavior
         when(httpActionExecutor.getType()).thenReturn("http");
-        when(httpActionExecutor.execute(eq(step1), any(ExecutionContext.class)))
+        when(httpActionExecutor.execute(eq(step1), any(ExecutionContext.class), eq(Collections.emptyMap())))
                 .thenReturn(Map.of("data", "result from step 1"));
-        when(httpActionExecutor.execute(eq(step2), any(ExecutionContext.class)))
+        when(httpActionExecutor.execute(eq(step2), any(ExecutionContext.class), eq(Collections.emptyMap())))
                 .thenReturn(Map.of("data", "result from step 2"));
 
         // Execute orchestration
@@ -69,8 +69,8 @@ class OrchestratorServiceImplIntegrationTest {
 
         // Verify interactions
         verify(specLoaderService, times(1)).loadSpec(product);
-        verify(httpActionExecutor, times(1)).execute(eq(step1), any(ExecutionContext.class));
-        verify(httpActionExecutor, times(1)).execute(eq(step2), any(ExecutionContext.class));
+        verify(httpActionExecutor, times(1)).execute(eq(step1), any(ExecutionContext.class), eq(Collections.emptyMap()));
+        verify(httpActionExecutor, times(1)).execute(eq(step2), any(ExecutionContext.class), eq(Collections.emptyMap()));
 
         // Verify the final result
         assertNotNull(result);
@@ -116,7 +116,7 @@ class OrchestratorServiceImplIntegrationTest {
         assertEquals("error", result.get("status"));
         assertTrue(result.get("message").toString().contains("No action executor found for type: unknownType"));
         verify(specLoaderService, times(1)).loadSpec(product);
-        verify(httpActionExecutor, never()).execute(any(), any()); // Executor's execute method should not be called
+        verify(httpActionExecutor, never()).execute(any(), any(), any()); // Executor's execute method should not be called
     }
 
     @Test
@@ -130,7 +130,7 @@ class OrchestratorServiceImplIntegrationTest {
 
         when(specLoaderService.loadSpec(product)).thenReturn(specification);
         when(httpActionExecutor.getType()).thenReturn("http");
-        when(httpActionExecutor.execute(eq(step1), any(ExecutionContext.class)))
+        when(httpActionExecutor.execute(eq(step1), any(ExecutionContext.class), eq(Collections.emptyMap())))
                 .thenThrow(new IllegalArgumentException("Invalid URL"));
 
         Map<String, Object> result = orchestratorService.executeOrchestration(product, requestParams);
@@ -139,6 +139,6 @@ class OrchestratorServiceImplIntegrationTest {
         assertEquals("error", result.get("status"));
         assertTrue(result.get("message").toString().contains("Orchestration failed: Invalid URL"));
         verify(specLoaderService, times(1)).loadSpec(product);
-        verify(httpActionExecutor, times(1)).execute(eq(step1), any(ExecutionContext.class));
+        verify(httpActionExecutor, times(1)).execute(eq(step1), any(ExecutionContext.class), eq(Collections.emptyMap()));
     }
 }

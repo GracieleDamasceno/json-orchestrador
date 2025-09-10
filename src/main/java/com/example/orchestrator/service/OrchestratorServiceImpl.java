@@ -44,7 +44,7 @@ public class OrchestratorServiceImpl implements OrchestratorService {
             for (Step step : specification.steps()) {
                 logger.info("Executing step: {} of type: {}", step.id(), step.type());
                 ActionExecutor executor = getExecutorForStep(step.type());
-                Object stepResult = executor.execute(step, context);
+                Object stepResult = executor.execute(step, context, requestParams);
                 logger.info("Step '{}' executed. Result: {}", step.id(), stepResult);
 
                 if (step.output() != null && !step.output().isEmpty()) {
