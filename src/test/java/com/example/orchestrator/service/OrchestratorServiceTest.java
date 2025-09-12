@@ -13,6 +13,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.example.orchestrator.validation.InputValidator;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,6 +32,9 @@ public class OrchestratorServiceTest {
 
     @Mock
     private SpecLoaderService specLoaderService;
+
+    @Mock
+    private InputValidator inputValidator;
 
     @InjectMocks
     private OrchestratorServiceImpl orchestratorService;

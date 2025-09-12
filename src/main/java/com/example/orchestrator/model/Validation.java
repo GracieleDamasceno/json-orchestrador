@@ -6,6 +6,6 @@ public record Validation(
         @JsonProperty("minLength") Integer minLength,
         @JsonProperty("maxLength") Integer maxLength,
         @JsonProperty("pattern") String pattern,
-        @JsonProperty("min") Integer min,
-        @JsonProperty("max") Integer max
+        @JsonProperty("min") Double min,
+        @JsonProperty("max") Double max
 ) {}

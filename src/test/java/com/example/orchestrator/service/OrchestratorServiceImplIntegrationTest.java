@@ -17,6 +17,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import com.example.orchestrator.validation.InputValidator;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -30,6 +32,8 @@ class OrchestratorServiceImplIntegrationTest {
 
     @Mock
     private ActionExecutor httpActionExecutor; // Mock a specific executor
+    @Mock
+    private InputValidator inputValidator;
 
     @InjectMocks
     private OrchestratorServiceImpl orchestratorService;
@@ -38,7 +42,7 @@ class OrchestratorServiceImplIntegrationTest {
     void setUp() {
         // Manually inject the list of mock executors
         List<ActionExecutor> actionExecutors = Arrays.asList(httpActionExecutor);
-        orchestratorService = new OrchestratorServiceImpl(specLoaderService, actionExecutors);
+        orchestratorService = new OrchestratorServiceImpl(specLoaderService, actionExecutors, inputValidator);
     }
 
     @Test

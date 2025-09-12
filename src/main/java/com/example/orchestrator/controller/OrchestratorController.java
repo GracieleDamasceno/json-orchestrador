@@ -1,5 +1,6 @@
 package com.example.orchestrator.controller;
 
+import com.example.orchestrator.service.InvalidInputException;
 import com.example.orchestrator.service.OrchestratorService;
 import com.example.orchestrator.service.SpecNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -29,6 +30,8 @@ public class OrchestratorController {
             return ResponseEntity.ok(serviceResult);
         } catch (SpecNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (InvalidInputException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 }

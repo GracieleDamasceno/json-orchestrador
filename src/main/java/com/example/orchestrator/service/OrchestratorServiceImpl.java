@@ -4,6 +4,7 @@ import com.example.orchestrator.action.ActionExecutor;
 import com.example.orchestrator.model.Specification;
 import com.example.orchestrator.model.Step;
 import com.example.orchestrator.util.ExecutionContext;
+import com.example.orchestrator.validation.InputValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -19,10 +20,12 @@ public class OrchestratorServiceImpl implements OrchestratorService {
     private static final Logger logger = LoggerFactory.getLogger(OrchestratorServiceImpl.class);
     private final SpecLoaderService specLoaderService;
     private final List<ActionExecutor> actionExecutors;
+    private final InputValidator inputValidator;
 
-    public OrchestratorServiceImpl(SpecLoaderService specLoaderService, List<ActionExecutor> actionExecutors) {
+    public OrchestratorServiceImpl(SpecLoaderService specLoaderService, List<ActionExecutor> actionExecutors, InputValidator inputValidator) {
         this.specLoaderService = specLoaderService;
         this.actionExecutors = actionExecutors;
+        this.inputValidator = inputValidator;
     }
 
     private ActionExecutor getExecutorForStep(String type) {
@@ -38,6 +41,9 @@ public class OrchestratorServiceImpl implements OrchestratorService {
         try {
             Specification specification = specLoaderService.loadSpec(product);
             logger.info("Loaded specification for product {}: {}", product, specification);
+
+            inputValidator.validate(requestParams, specification.input());
+            logger.info("Input parameters validated for product: {}", product);
 
             ExecutionContext context = new ExecutionContext();
 
@@ -58,6 +64,9 @@ public class OrchestratorServiceImpl implements OrchestratorService {
         } catch (SpecNotFoundException e) {
             logger.error("Specification not found for product: {}", product, e);
             return Map.of("status", "error", "message", e.getMessage());
+        } catch (InvalidInputException e) {
+            logger.error("Invalid input for product {}: {}", product, e.getMessage(), e);
+            return Map.of("status", "error", "message", "Invalid input: " + e.getMessage());
         } catch (IllegalArgumentException | UnsupportedOperationException e) {
             logger.error("Orchestration failed: {}", e.getMessage(), e);
             return Map.of("status", "error", "message", "Orchestration failed: " + e.getMessage());
