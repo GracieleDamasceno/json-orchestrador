@@ -45,7 +45,8 @@ class SpecificationTest {
                   "output": {
                     "parameters": [
                       {
-                        "type": "string"
+                        "name": "outputField",
+                        "value": "${apiResponse}"
                       }
                     ]
                   }
@@ -83,6 +84,7 @@ class SpecificationTest {
         assertNotNull(spec.output());
         assertNotNull(spec.output().parameters());
         assertEquals(1, spec.output().parameters().size());
-        assertEquals("string", spec.output().parameters().get(0).type());
+        assertEquals("outputField", spec.output().parameters().get(0).name());
+        assertEquals("${apiResponse}", spec.output().parameters().get(0).value());
     }
 }

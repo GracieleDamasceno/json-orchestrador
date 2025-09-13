@@ -41,6 +41,8 @@ class OrchestratorServiceImplIntegrationTest {
     private InputValidator inputValidator;
     @Mock
     private RetryTemplate retryTemplate;
+    @Mock
+    private OutputFormatter outputFormatter;
 
     @InjectMocks
     private OrchestratorServiceImpl orchestratorService;
@@ -49,7 +51,7 @@ class OrchestratorServiceImplIntegrationTest {
     void setUp() {
         // Manually inject the list of mock executors
         List<ActionExecutor> actionExecutors = Arrays.asList(httpActionExecutor);
-        orchestratorService = new OrchestratorServiceImpl(specLoaderService, actionExecutors, inputValidator, retryTemplate);
+        orchestratorService = new OrchestratorServiceImpl(specLoaderService, actionExecutors, inputValidator, retryTemplate, outputFormatter);
 
         // Default behavior for retryTemplate to just execute the callback immediately
         lenient().when(retryTemplate.execute(any())).thenAnswer(new Answer<Object>() {
@@ -61,9 +63,6 @@ class OrchestratorServiceImplIntegrationTest {
                 return invocation.getArgument(0, org.springframework.retry.RetryCallback.class).doWithRetry(retryContext);
             }
         });
-
-        
-
     }
 
     @Test
@@ -72,13 +71,14 @@ class OrchestratorServiceImplIntegrationTest {
         Map<String, Object> requestParams = Collections.emptyMap();
 
         // Mock Specification
-        Output output1 = new Output(Collections.emptyList()); // Assuming OutputParameter is not relevant for this test
         Step step1 = new Step("step1-id", "http", "GET", "http://example.com/api/step1", Collections.emptyMap(), null, null, null, "step1Result");
-
-        Output output2 = new Output(Collections.emptyList()); // Assuming OutputParameter is not relevant for this test
         Step step2 = new Step("step2-id", "http", "GET", "http://example.com/api/step2", Collections.emptyMap(), null, null, null, "step2Result");
 
-        Specification specification = new Specification("testProduct", "Test Description", null, Arrays.asList(step1, step2), null);
+        com.example.orchestrator.model.OutputParameter outputParam1 = new com.example.orchestrator.model.OutputParameter("finalField1", "${step1Result.data}");
+        com.example.orchestrator.model.OutputParameter outputParam2 = new com.example.orchestrator.model.OutputParameter("finalField2", "${step2Result.data}");
+        Output outputSpec = new Output(Arrays.asList(outputParam1, outputParam2));
+
+        Specification specification = new Specification("testProduct", "Test Description", null, Arrays.asList(step1, step2), outputSpec);
 
         when(specLoaderService.loadSpec(product)).thenReturn(specification);
 
@@ -89,6 +89,13 @@ class OrchestratorServiceImplIntegrationTest {
         when(httpActionExecutor.execute(eq(step2), any(ExecutionContext.class), eq(Collections.emptyMap())))
                 .thenReturn(Map.of("data", "result from step 2"));
 
+        // Mock OutputFormatter behavior
+        Map<String, Object> formattedOutput = Map.of(
+                "finalField1", "result from step 1",
+                "finalField2", "result from step 2"
+        );
+        when(outputFormatter.formatOutput(eq(outputSpec), any(ExecutionContext.class))).thenReturn(formattedOutput);
+
         // Execute orchestration
         Map<String, Object> result = orchestratorService.executeOrchestration(product, requestParams);
 
@@ -96,12 +103,17 @@ class OrchestratorServiceImplIntegrationTest {
         verify(specLoaderService, times(1)).loadSpec(product);
         verify(httpActionExecutor, times(1)).execute(eq(step1), any(ExecutionContext.class), eq(Collections.emptyMap()));
         verify(httpActionExecutor, times(1)).execute(eq(step2), any(ExecutionContext.class), eq(Collections.emptyMap()));
+        verify(outputFormatter, times(1)).formatOutput(eq(outputSpec), any(ExecutionContext.class));
 
         // Verify the final result
         assertNotNull(result);
         assertEquals("success", result.get("status"));
-        assertTrue(result.containsKey("context"));
+        assertFalse(result.containsKey("context")); // Context should no longer be in the final response
+        assertTrue(result.containsKey("output"));
         assertTrue(result.containsKey("trace"));
+
+        Map<String, Object> actualOutput = (Map<String, Object>) result.get("output");
+        assertEquals(formattedOutput, actualOutput);
 
         List<StepExecutionResult> trace = (List<StepExecutionResult>) result.get("trace");
         assertEquals(2, trace.size());
@@ -113,10 +125,6 @@ class OrchestratorServiceImplIntegrationTest {
         assertEquals("step2-id", trace.get(1).stepId());
         assertEquals("success", trace.get(1).status());
         assertNotNull(trace.get(1).output());
-
-        Map<String, Object> context = (Map<String, Object>) result.get("context");
-        assertTrue(context.containsKey("step1Result"));
-        assertTrue(context.containsKey("step2Result"));
     }
 
     @Test
@@ -140,8 +148,15 @@ class OrchestratorServiceImplIntegrationTest {
 
         assertNotNull(result);
         assertEquals("success", result.get("status"));
-        assertTrue(result.containsKey("context"));
+        assertFalse(result.containsKey("context")); // Context should no longer be in the final response
+        assertTrue(result.containsKey("output"));
         assertTrue(result.containsKey("trace"));
+
+        // Since we are not mocking outputFormatter for this test, it will return an empty map if no outputSpec is provided.
+        // If an outputSpec is provided, it will attempt to format it.
+        // For this test, we'll assume no outputSpec is provided in the specification, so the output will be an empty map.
+        Map<String, Object> actualOutput = (Map<String, Object>) result.get("output");
+        assertTrue(actualOutput.isEmpty());
 
         List<StepExecutionResult> trace = (List<StepExecutionResult>) result.get("trace");
         assertEquals(2, trace.size());
@@ -153,10 +168,6 @@ class OrchestratorServiceImplIntegrationTest {
         assertEquals("step2-id", trace.get(1).stepId());
         assertEquals("success", trace.get(1).status());
         assertNotNull(trace.get(1).output());
-
-        Map<String, Object> context = (Map<String, Object>) result.get("context");
-        assertTrue(context.containsKey("step1Result"));
-        assertTrue(context.containsKey("step2Result"));
     }
 
     @Test

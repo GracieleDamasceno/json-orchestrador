@@ -13,13 +13,15 @@ class OutputParameterTest {
     void testOutputParameterDeserialization() throws Exception {
         String json = """
                 {
-                  "type": "string"
+                  "name": "testName",
+                  "value": "${testValue}"
                 }
                 """;
 
         OutputParameter outputParam = objectMapper.readValue(json, OutputParameter.class);
 
         assertNotNull(outputParam);
-        assertEquals("string", outputParam.type());
+        assertEquals("testName", outputParam.name());
+        assertEquals("${testValue}", outputParam.value());
     }
 }

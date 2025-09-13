@@ -43,6 +43,8 @@ public class OrchestratorServiceTest {
     private InputValidator inputValidator;
     @Mock
     private RetryTemplate retryTemplate;
+    @Mock
+    private OutputFormatter outputFormatter;
 
     @InjectMocks
     private OrchestratorServiceImpl orchestratorService;
@@ -56,6 +58,10 @@ public class OrchestratorServiceTest {
         Output dummyOutput = new Output(Collections.emptyList());
         List<Step> dummySteps = Collections.emptyList();
         dummySpecification = new Specification("testProduct", "A test product specification", dummyInput, dummySteps, dummyOutput);
+
+        // Manually inject the list of mock executors (empty for this test)
+        List<com.example.orchestrator.action.ActionExecutor> actionExecutors = Collections.emptyList();
+        orchestratorService = new OrchestratorServiceImpl(specLoaderService, actionExecutors, inputValidator, retryTemplate, outputFormatter);
 
         // Default behavior for retryTemplate to just execute the callback immediately
         lenient().when(retryTemplate.execute(any())).thenAnswer(new Answer<Object>() {
@@ -82,7 +88,7 @@ public class OrchestratorServiceTest {
 
         assertNotNull(result);
         assertEquals("success", result.get("status"));
-        assertNotNull(result.get("context"));
+        assertNotNull(result.get("output")); // Assert for output instead of context
         assertNotNull(result.get("trace"));
         logger.info("Service test passed for product: {}", product);
     }

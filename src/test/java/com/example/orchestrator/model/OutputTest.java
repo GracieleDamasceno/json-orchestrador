@@ -15,10 +15,12 @@ class OutputTest {
                 {
                   "parameters": [
                     {
-                      "type": "string"
+                      "name": "field1",
+                      "value": "${step1.result}"
                     },
                     {
-                      "type": "integer"
+                      "name": "field2",
+                      "value": "${step2.result}"
                     }
                   ]
                 }
@@ -29,8 +31,10 @@ class OutputTest {
         assertNotNull(output);
         assertNotNull(output.parameters());
         assertEquals(2, output.parameters().size());
-        assertEquals("string", output.parameters().get(0).type());
-        assertEquals("integer", output.parameters().get(1).type());
+        assertEquals("field1", output.parameters().get(0).name());
+        assertEquals("${step1.result}", output.parameters().get(0).value());
+        assertEquals("field2", output.parameters().get(1).name());
+        assertEquals("${step2.result}", output.parameters().get(1).value());
     }
 
     @Test

@@ -25,12 +25,14 @@ public class OrchestratorServiceImpl implements OrchestratorService {
     private final List<ActionExecutor> actionExecutors;
     private final InputValidator inputValidator;
     private final RetryTemplate retryTemplate;
+    private final OutputFormatter outputFormatter;
 
-    public OrchestratorServiceImpl(SpecLoaderService specLoaderService, List<ActionExecutor> actionExecutors, InputValidator inputValidator, RetryTemplate retryTemplate) {
+    public OrchestratorServiceImpl(SpecLoaderService specLoaderService, List<ActionExecutor> actionExecutors, InputValidator inputValidator, RetryTemplate retryTemplate, OutputFormatter outputFormatter) {
         this.specLoaderService = specLoaderService;
         this.actionExecutors = actionExecutors;
         this.inputValidator = inputValidator;
         this.retryTemplate = retryTemplate;
+        this.outputFormatter = outputFormatter;
     }
 
     private ActionExecutor getExecutorForStep(String type) {
@@ -80,7 +82,7 @@ public class OrchestratorServiceImpl implements OrchestratorService {
                 }
             }
 
-            return createSuccessResponse(context.getAll(), trace);
+            return createSuccessResponse(specification, context, trace);
 
         } catch (SpecNotFoundException e) {
             logger.error("Specification not found for product: {}", product, e);
@@ -111,10 +113,10 @@ public class OrchestratorServiceImpl implements OrchestratorService {
         return response;
     }
 
-    private Map<String, Object> createSuccessResponse(Map<String, Object> context, List<StepExecutionResult> trace) {
+    private Map<String, Object> createSuccessResponse(Specification specification, ExecutionContext context, List<StepExecutionResult> trace) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("status", "success");
-        response.put("context", context);
+        response.put("output", outputFormatter.formatOutput(specification.output(), context));
         response.put("trace", trace);
         return response;
     }
