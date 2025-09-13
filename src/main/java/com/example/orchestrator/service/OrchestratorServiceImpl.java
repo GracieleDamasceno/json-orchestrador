@@ -3,16 +3,19 @@ package com.example.orchestrator.service;
 import com.example.orchestrator.action.ActionExecutor;
 import com.example.orchestrator.model.Specification;
 import com.example.orchestrator.model.Step;
+import com.example.orchestrator.model.StepExecutionResult;
 import com.example.orchestrator.util.ExecutionContext;
 import com.example.orchestrator.validation.InputValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.HashMap;
 
 @Service
 public class OrchestratorServiceImpl implements OrchestratorService {
@@ -21,11 +24,13 @@ public class OrchestratorServiceImpl implements OrchestratorService {
     private final SpecLoaderService specLoaderService;
     private final List<ActionExecutor> actionExecutors;
     private final InputValidator inputValidator;
+    private final RetryTemplate retryTemplate;
 
-    public OrchestratorServiceImpl(SpecLoaderService specLoaderService, List<ActionExecutor> actionExecutors, InputValidator inputValidator) {
+    public OrchestratorServiceImpl(SpecLoaderService specLoaderService, List<ActionExecutor> actionExecutors, InputValidator inputValidator, RetryTemplate retryTemplate) {
         this.specLoaderService = specLoaderService;
         this.actionExecutors = actionExecutors;
         this.inputValidator = inputValidator;
+        this.retryTemplate = retryTemplate;
     }
 
     private ActionExecutor getExecutorForStep(String type) {
@@ -46,30 +51,71 @@ public class OrchestratorServiceImpl implements OrchestratorService {
             logger.info("Input parameters validated for product: {}", product);
 
             ExecutionContext context = new ExecutionContext();
+            List<StepExecutionResult> trace = new ArrayList<>();
 
             for (Step step : specification.steps()) {
                 logger.info("Executing step: {} of type: {}", step.id(), step.type());
                 ActionExecutor executor = getExecutorForStep(step.type());
-                Object stepResult = executor.execute(step, context, requestParams);
-                logger.info("Step '{}' executed. Result: {}", step.id(), stepResult);
 
-                if (step.output() != null && !step.output().isEmpty()) {
-                    context.put(step.output(), stepResult);
-                    logger.info("Output of step '{}' stored in context under key: {}", step.id(), step.output());
+                try {
+                    Object stepResult = retryTemplate.execute(contextWithRetry -> {
+                        logger.debug("Attempting execution for step '{}', attempt {}", step.id(), contextWithRetry.getRetryCount() + 1);
+                        return executor.execute(step, context, requestParams);
+                    });
+
+                    logger.info("Step '{}' executed successfully. Result: {}", step.id(), stepResult);
+                    Map<String, Object> outputMap = new LinkedHashMap<>();
+                    if (step.output() != null && !step.output().isEmpty()) {
+                        context.put(step.output(), stepResult);
+                        outputMap.put(step.output(), stepResult);
+                        logger.info("Output of step '{}' stored in context under key: {}", step.id(), step.output());
+                    }
+                    trace.add(new StepExecutionResult(step.id(), "success", outputMap, null));
+
+                } catch (Exception e) {
+                    logger.error("Step '{}' failed after retries: {}", step.id(), e.getMessage(), e);
+                    StepExecutionResult failedResult = new StepExecutionResult(step.id(), "error", null, e.getMessage());
+                    trace.add(failedResult);
+                    return createErrorResponse("Orchestration failed: " + e.getMessage(), step.id(), trace);
                 }
             }
 
-            // For now, return a hardcoded response
-            return Map.of("status", "success", "message", "Orchestration for product " + product + " completed");
+            return createSuccessResponse(context.getAll(), trace);
+
         } catch (SpecNotFoundException e) {
             logger.error("Specification not found for product: {}", product, e);
-            return Map.of("status", "error", "message", e.getMessage());
+            return createErrorResponse(e.getMessage(), null, new ArrayList<>());
         } catch (InvalidInputException e) {
             logger.error("Invalid input for product {}: {}", product, e.getMessage(), e);
-            return Map.of("status", "error", "message", "Invalid input: " + e.getMessage());
+            return createErrorResponse("Invalid input: " + e.getMessage(), null, new ArrayList<>());
         } catch (IllegalArgumentException | UnsupportedOperationException e) {
             logger.error("Orchestration failed: {}", e.getMessage(), e);
-            return Map.of("status", "error", "message", "Orchestration failed: " + e.getMessage());
+            return createErrorResponse("Orchestration failed: " + e.getMessage(), null, new ArrayList<>());
+        } catch (Exception e) {
+            logger.error("An unexpected error occurred during orchestration: {}", e.getMessage(), e);
+            return createErrorResponse("An unexpected error occurred: " + e.getMessage(), null, new ArrayList<>());
         }
+    }
+
+    private Map<String, Object> createErrorResponse(String message, String stepId, List<StepExecutionResult> trace) {
+        Map<String, Object> errorDetails = new LinkedHashMap<>();
+        errorDetails.put("message", message);
+        if (stepId != null) {
+            errorDetails.put("step", stepId);
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("status", "error");
+        response.put("error", errorDetails);
+        response.put("trace", trace);
+        return response;
+    }
+
+    private Map<String, Object> createSuccessResponse(Map<String, Object> context, List<StepExecutionResult> trace) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("status", "success");
+        response.put("context", context);
+        response.put("trace", trace);
+        return response;
     }
 }

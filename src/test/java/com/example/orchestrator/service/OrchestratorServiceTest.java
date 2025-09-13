@@ -9,9 +9,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.retry.support.RetryTemplate;
 
 import com.example.orchestrator.validation.InputValidator;
 
@@ -23,6 +26,9 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,6 +41,8 @@ public class OrchestratorServiceTest {
 
     @Mock
     private InputValidator inputValidator;
+    @Mock
+    private RetryTemplate retryTemplate;
 
     @InjectMocks
     private OrchestratorServiceImpl orchestratorService;
@@ -48,6 +56,17 @@ public class OrchestratorServiceTest {
         Output dummyOutput = new Output(Collections.emptyList());
         List<Step> dummySteps = Collections.emptyList();
         dummySpecification = new Specification("testProduct", "A test product specification", dummyInput, dummySteps, dummyOutput);
+
+        // Default behavior for retryTemplate to just execute the callback immediately
+        lenient().when(retryTemplate.execute(any())).thenAnswer(new Answer<Object>() {
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                // Create a dummy RetryContext for the mock
+                org.springframework.retry.RetryContext retryContext = mock(org.springframework.retry.RetryContext.class);
+                when(retryContext.getRetryCount()).thenReturn(0); // Default to 0 retries for successful path
+                return invocation.getArgument(0, org.springframework.retry.RetryCallback.class).doWithRetry(retryContext);
+            }
+        });
     }
 
     @Test
@@ -63,7 +82,8 @@ public class OrchestratorServiceTest {
 
         assertNotNull(result);
         assertEquals("success", result.get("status"));
-        assertEquals("Orchestration for product " + product + " completed", result.get("message"));
+        assertNotNull(result.get("context"));
+        assertNotNull(result.get("trace"));
         logger.info("Service test passed for product: {}", product);
     }
 
@@ -78,6 +98,7 @@ public class OrchestratorServiceTest {
 
         assertNotNull(result);
         assertEquals("error", result.get("status"));
-        assertEquals("Specification for product 'nonExistentProduct' not found.", result.get("message"));
+        Map<String, Object> errorDetails = (Map<String, Object>) result.get("error");
+        assertEquals("Specification for product 'nonExistentProduct' not found.", errorDetails.get("message"));
     }
 }

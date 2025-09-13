@@ -21,4 +21,8 @@ public class ExecutionContext {
     public Map<String, Object> getMap() {
         return contextMap;
     }
+
+    public Map<String, Object> getAll() {
+        return new ConcurrentHashMap<>(contextMap);
+    }
 }
