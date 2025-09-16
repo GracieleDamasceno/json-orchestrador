@@ -9,14 +9,14 @@ import java.io.IOException;
 import java.util.Map;
 
 @Converter
-public class MapToStringConverter implements AttributeConverter<Map<String, String>, String> {
+public class MapToStringConverter implements AttributeConverter<Map<String, Object>, String> {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
-    public String convertToDatabaseColumn(Map<String, String> stringStringMap) {
+    public String convertToDatabaseColumn(Map<String, Object> objectMap) {
         try {
-            return objectMapper.writeValueAsString(stringStringMap);
+            return objectMapper.writeValueAsString(objectMap);
         } catch (JsonProcessingException e) {
             // Handle the exception, e.g., log it or throw a custom exception
             return null;
@@ -24,7 +24,7 @@ public class MapToStringConverter implements AttributeConverter<Map<String, Stri
     }
 
     @Override
-    public Map<String, String> convertToEntityAttribute(String s) {
+    public Map<String, Object> convertToEntityAttribute(String s) {
         try {
             return objectMapper.readValue(s, Map.class);
         } catch (IOException e) {

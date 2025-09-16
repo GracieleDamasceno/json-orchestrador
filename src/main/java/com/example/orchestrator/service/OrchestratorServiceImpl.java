@@ -6,8 +6,7 @@ import com.example.orchestrator.model.Step;
 import com.example.orchestrator.model.StepExecutionResult;
 import com.example.orchestrator.util.ExecutionContext;
 import com.example.orchestrator.validation.InputValidator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Service;
 
@@ -17,10 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class OrchestratorServiceImpl implements OrchestratorService {
 
-    private static final Logger logger = LoggerFactory.getLogger(OrchestratorServiceImpl.class);
     private final SpecLoaderService specLoaderService;
     private final List<ActionExecutor> actionExecutors;
     private final InputValidator inputValidator;
@@ -44,38 +43,39 @@ public class OrchestratorServiceImpl implements OrchestratorService {
 
     @Override
     public Map<String, Object> executeOrchestration(String product, Map<String, Object> requestParams) {
-        logger.info("Received orchestration request for product: {}", product);
+        log.info("Received orchestration request for product: {}", product);
         try {
             Specification specification = specLoaderService.loadSpec(product);
-            logger.info("Loaded specification for product {}: {}", product, specification);
+            log.info("Loaded specification for product {}: {}", product, specification);
 
             inputValidator.validate(requestParams, specification.input());
-            logger.info("Input parameters validated for product: {}", product);
+            log.info("Input parameters validated for product: {}", product);
 
             ExecutionContext context = new ExecutionContext();
+            context.put("input", requestParams);
             List<StepExecutionResult> trace = new ArrayList<>();
 
             for (Step step : specification.steps()) {
-                logger.info("Executing step: {} of type: {}", step.id(), step.type());
+                log.info("Executing step: {} of type: {}", step.id(), step.type());
                 ActionExecutor executor = getExecutorForStep(step.type());
 
                 try {
                     Object stepResult = retryTemplate.execute(contextWithRetry -> {
-                        logger.debug("Attempting execution for step '{}', attempt {}", step.id(), contextWithRetry.getRetryCount() + 1);
+                        log.debug("Attempting execution for step '{}', attempt {}", step.id(), contextWithRetry.getRetryCount() + 1);
                         return executor.execute(step, context, requestParams);
                     });
 
-                    logger.info("Step '{}' executed successfully. Result: {}", step.id(), stepResult);
+                    log.info("Step '{}' executed successfully. Result: {}", step.id(), stepResult);
                     Map<String, Object> outputMap = new LinkedHashMap<>();
                     if (step.output() != null && !step.output().isEmpty()) {
                         context.put(step.output(), stepResult);
                         outputMap.put(step.output(), stepResult);
-                        logger.info("Output of step '{}' stored in context under key: {}", step.id(), step.output());
+                        log.info("Output of step '{}' stored in context under key: {}", step.id(), step.output());
                     }
                     trace.add(new StepExecutionResult(step.id(), "success", outputMap, null));
 
                 } catch (Exception e) {
-                    logger.error("Step '{}' failed after retries: {}", step.id(), e.getMessage(), e);
+                    log.error("Step '{}' failed after retries: {}", step.id(), e.getMessage(), e);
                     StepExecutionResult failedResult = new StepExecutionResult(step.id(), "error", null, e.getMessage());
                     trace.add(failedResult);
                     return createErrorResponse("Orchestration failed: " + e.getMessage(), step.id(), trace);
@@ -85,16 +85,16 @@ public class OrchestratorServiceImpl implements OrchestratorService {
             return createSuccessResponse(specification, context, trace);
 
         } catch (SpecNotFoundException e) {
-            logger.error("Specification not found for product: {}", product, e);
+            log.error("Specification not found for product: {}", product, e);
             return createErrorResponse(e.getMessage(), null, new ArrayList<>());
         } catch (InvalidInputException e) {
-            logger.error("Invalid input for product {}: {}", product, e.getMessage(), e);
+            log.error("Invalid input for product {}: {}", product, e.getMessage(), e);
             return createErrorResponse("Invalid input: " + e.getMessage(), null, new ArrayList<>());
         } catch (IllegalArgumentException | UnsupportedOperationException e) {
-            logger.error("Orchestration failed: {}", e.getMessage(), e);
+            log.error("Orchestration failed: {}", e.getMessage(), e);
             return createErrorResponse("Orchestration failed: " + e.getMessage(), null, new ArrayList<>());
         } catch (Exception e) {
-            logger.error("An unexpected error occurred during orchestration: {}", e.getMessage(), e);
+            log.error("An unexpected error occurred during orchestration: {}", e.getMessage(), e);
             return createErrorResponse("An unexpected error occurred: " + e.getMessage(), null, new ArrayList<>());
         }
     }

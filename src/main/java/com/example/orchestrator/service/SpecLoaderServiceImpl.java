@@ -2,6 +2,7 @@ package com.example.orchestrator.service;
 
 import com.example.orchestrator.model.Specification;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
@@ -13,16 +14,17 @@ public class SpecLoaderServiceImpl implements SpecLoaderService {
 
     private final ResourceLoader resourceLoader;
     private final ObjectMapper objectMapper;
-    private static final String SPECS_DIRECTORY = "classpath:specs/";
+    private final String specsDirectory;
 
-    public SpecLoaderServiceImpl(ResourceLoader resourceLoader, ObjectMapper objectMapper) {
+    public SpecLoaderServiceImpl(ResourceLoader resourceLoader, ObjectMapper objectMapper, @Value("${orchestrator.specs-dir}") String specsDirectory) {
         this.resourceLoader = resourceLoader;
         this.objectMapper = objectMapper;
+        this.specsDirectory = specsDirectory;
     }
 
     @Override
     public Specification loadSpec(String product) {
-        String resourcePath = SPECS_DIRECTORY + product + ".json";
+        String resourcePath = specsDirectory + product + ".json";
         Resource resource = resourceLoader.getResource(resourcePath);
 
         if (!resource.exists()) {

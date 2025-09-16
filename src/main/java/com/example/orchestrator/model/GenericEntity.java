@@ -15,9 +15,9 @@ public class GenericEntity {
 
     @Convert(converter = MapToStringConverter.class)
     @Column(columnDefinition = "TEXT")
-    private Map<String, String> data;
+    private Map<String, Object> data;
 
-    public GenericEntity(String tableName, Map<String, String> data) {
+    public GenericEntity(String tableName, Map<String, Object> data) {
         this.tableName = tableName;
         this.data = data;
     }
@@ -42,11 +42,11 @@ public class GenericEntity {
         this.tableName = tableName;
     }
 
-    public Map<String, String> getData() {
+    public Map<String, Object> getData() {
         return data;
     }
 
-    public void setData(Map<String, String> data) {
+    public void setData(Map<String, Object> data) {
         this.data = data;
     }
 }

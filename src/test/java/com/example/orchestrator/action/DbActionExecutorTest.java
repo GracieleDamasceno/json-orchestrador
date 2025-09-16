@@ -1,18 +1,23 @@
 package com.example.orchestrator.action;
 
+import com.example.orchestrator.JsonOrchestratorApplication;
 import com.example.orchestrator.model.GenericEntity;
 import com.example.orchestrator.model.Step;
 import com.example.orchestrator.repository.GenericEntityRepository;
 import com.example.orchestrator.util.ExecutionContext;
 import com.example.orchestrator.util.VariableResolver;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.HashMap;
 import java.util.List;
@@ -20,12 +25,12 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @DataJpaTest
-@Import({DbActionExecutor.class}) // Removed VariableResolver from @Import as it's now mocked statically
+@Import({DbActionExecutor.class, VariableResolver.class})
+@ActiveProfiles("test")
 class DbActionExecutorTest {
 
     @Autowired
@@ -34,23 +39,15 @@ class DbActionExecutorTest {
     @Autowired
     private GenericEntityRepository genericEntityRepository;
 
-    // No longer need @MockBean for VariableResolver as it's static
-    // @MockBean
-    // private VariableResolver mockVariableResolver;
+    @Autowired
+    private VariableResolver variableResolver;
 
-    private static MockedStatic<VariableResolver> mockedVariableResolver;
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        // Mock the static VariableResolver
-        mockedVariableResolver = Mockito.mockStatic(VariableResolver.class);
-        mockedVariableResolver.when(() -> VariableResolver.resolveVariables(anyString(), any(Map.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0)); // Return the original string
-    }
-
-    @org.junit.jupiter.api.AfterEach
-    void tearDown() {
-        mockedVariableResolver.close();
+        // Reset mocks before each test
+        genericEntityRepository.deleteAll(); // Clear H2 database before each test
     }
 
     @Test
@@ -62,7 +59,7 @@ class DbActionExecutorTest {
     void execute_selectOperation_shouldReturnEntities() {
         // Given
         String tableName = "test_table";
-        Map<String, String> data = new HashMap<>();
+        Map<String, Object> data = new HashMap<>();
         data.put("key1", "value1");
         GenericEntity entity = new GenericEntity(tableName, data);
         genericEntityRepository.save(entity);
@@ -70,6 +67,7 @@ class DbActionExecutorTest {
         Step step = new Step("step1", "db", null, null, null, "select", tableName, null, null);
         ExecutionContext context = new ExecutionContext();
         Map<String, Object> requestParams = new HashMap<>();
+
 
         // When
         List<GenericEntity> result = (List<GenericEntity>) dbActionExecutor.execute(step, context, requestParams);
@@ -83,11 +81,42 @@ class DbActionExecutorTest {
     }
 
     @Test
-    void execute_unsupportedOperation_shouldThrowException() {
+    void execute_insertOperation_shouldSaveEntity() throws Exception {
         // Given
-        Step step = new Step("step1", "db", null, null, null, "insert", "test_table", null, null);
+        String tableName = "new_table";
+        Map<String, Object> insertData = new HashMap<>();
+        insertData.put("name", "test_name");
+        insertData.put("value", 123);
+
+        Step step = new Step("step1", "db", null, null, null, "insert", tableName, objectMapper.valueToTree(insertData), null);
         ExecutionContext context = new ExecutionContext();
         Map<String, Object> requestParams = new HashMap<>();
+
+
+        // When
+        @SuppressWarnings("unchecked")
+        Map<String, Object> result = (Map<String, Object>) dbActionExecutor.execute(step, context, requestParams);
+
+        // Then
+        assertNotNull(result);
+        assertNotNull(result.get("id"));
+        assertEquals(tableName, result.get("tableName"));
+        assertEquals(insertData, result.get("data"));
+
+        // Verify it was saved in the repository
+        List<GenericEntity> entities = genericEntityRepository.findByTableName(tableName);
+        assertFalse(entities.isEmpty());
+        assertEquals(1, entities.size());
+        assertEquals(result.get("id"), entities.get(0).getId());
+    }
+
+    @Test
+    void execute_unsupportedOperation_shouldThrowException() {
+        // Given
+        Step step = new Step("step1", "db", null, null, null, "unsupported", "test_table", null, null);
+        ExecutionContext context = new ExecutionContext();
+        Map<String, Object> requestParams = new HashMap<>();
+
 
         // When & Then
         assertThrows(UnsupportedOperationException.class, () -> dbActionExecutor.execute(step, context, requestParams));
@@ -97,18 +126,18 @@ class DbActionExecutorTest {
     void execute_selectOperationWithVariable_shouldReturnEntities() {
         // Given
         String tableName = "variable_table";
-        Map<String, String> data = new HashMap<>();
+        Map<String, Object> data = new HashMap<>();
         data.put("keyA", "valueA");
         GenericEntity entity = new GenericEntity(tableName, data);
         genericEntityRepository.save(entity);
 
         String variableTableName = "${input.dynamicTable}";
-        mockedVariableResolver.when(() -> VariableResolver.resolveVariables(eq(variableTableName), any(Map.class)))
-                .thenReturn(tableName);
 
         Step step = new Step("step1", "db", null, null, null, "select", variableTableName, null, null);
         ExecutionContext context = new ExecutionContext();
-        context.put("input.dynamicTable", tableName); // Simulate input context
+        Map<String, Object> input = new HashMap<>();
+        input.put("dynamicTable", tableName);
+        context.put("input", input);
         Map<String, Object> requestParams = new HashMap<>();
 
         // When

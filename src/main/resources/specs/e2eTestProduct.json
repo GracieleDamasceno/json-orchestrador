@@ -1,0 +1,82 @@
+{
+  "name": "e2eTestProduct",
+  "description": "E2E Test Product Description",
+  "input": {
+    "parameters": [
+      {
+        "name": "productId",
+        "type": "string",
+        "required": true,
+        "validation": {}
+      },
+      {
+        "name": "productName",
+        "type": "string",
+        "required": true,
+        "validation": {}
+      },
+      {
+        "name": "productPrice",
+        "type": "number",
+        "required": true,
+        "validation": {}
+      }
+    ]
+  },
+  "steps": [
+    {
+      "id": "getProductDetails",
+      "type": "http",
+      "method": "GET",
+      "url": "http://localhost:8080/products/${input.productId}",
+      "output": "productDetails"
+    },
+    {
+      "id": "insertProductIntoDB",
+      "type": "db",
+      "operation": "insert",
+      "table": "products",
+      "data": {
+        "id": "${productDetails.id}",
+        "name": "${input.productName}",
+        "price": "${input.productPrice}",
+        "description": "${productDetails.description}"
+      },
+      "output": "dbInsertResult"
+    },
+    {
+      "id": "postProductUpdate",
+      "type": "http",
+      "method": "POST",
+      "url": "http://localhost:8080/product-updates",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "data": {
+        "productId": "${dbInsertResult.data.id}",
+        "status": "inserted"
+      },
+      "output": "postResponse"
+    }
+  ],
+  "output": {
+    "parameters": [
+      {
+        "name": "finalStatus",
+        "value": "Orchestration completed successfully for product ${input.productName}"
+      },
+      {
+        "name": "productDetails",
+        "value": "${productDetails}"
+      },
+      {
+        "name": "dbResult",
+        "value": "${dbInsertResult}"
+      },
+      {
+        "name": "postResult",
+        "value": "${postResponse}"
+      }
+    ]
+  }
+}

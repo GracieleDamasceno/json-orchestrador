@@ -39,7 +39,7 @@ public class SpecLoaderServiceTest {
     void setUp() {
         // Reset mocks before each test
         reset(resourceLoader, objectMapper);
-        specLoaderService = new SpecLoaderServiceImpl(resourceLoader, objectMapper);
+        specLoaderService = new SpecLoaderServiceImpl(resourceLoader, objectMapper, SPECS_DIRECTORY);
     }
 
     @Test
